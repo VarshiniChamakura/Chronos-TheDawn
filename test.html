@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Time Travel Adventure - Enhanced</title>
+  <style>
+    body {
+      background: linear-gradient(135deg, #0a0a2e, #16213e);
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      padding: 10px;
+      margin: 0;
+      min-height: 100vh;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #00ff41;
+      padding-bottom: 8px;
+    }
+    .header h1 {
+      color: #ff6b35;
+      text-shadow: 0 0 10px #ff6b35;
+      margin: 0;
+      font-size: 24px;
+    }
+    .header p {
+      margin: 5px 0 0 0;
+      font-size: 14px;
+    }
+    #status-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-bottom: 15px;
+      padding: 10px;
+      background: rgba(0, 255, 65, 0.1);
+      border: 1px solid #00ff41;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .status-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-label {
+      font-weight: bold;
+      color: #00bfff;
+    }
+    .status-value {
+      color: #ffffff;
+      font-weight: bold;
+    }
+    .time-effect {
+      color: #ff6b35;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    #game-area {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 15px;
+      height: 280px;
+    }
+    #console {
+      flex: 2;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      overflow-y: auto;
+      padding: 10px;
+      border: 2px solid #00ff41;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+    #map-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #map {
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #00ff41;
+      border-radius: 8px;
+    }
+    #score-board {
+      background: rgba(0, 255, 65, 0.1);
+      border: 1px solid #00ff41;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      font-size: 11px;
+    }
+    #score-board h3 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+    }
+    #score-board p {
+      margin: 4px 0;
+      line-height: 1.2;
+    }
+    #cmd {
+      width: 66.5%;
+      background: rgba(0, 0, 0, 0.9);
+      color: #00ff41;
+      padding: 15px;
+      border: 2px solid #00ff41;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    #cmd:focus {
+      outline: none;
+      border-color: #ff6b35;
+      box-shadow: 0 0 10px rgba(255, 107, 53, 0.5);
+    }
+    .question {
+      color: #ffff00;
+      font-weight: bold;
+      background: rgba(255, 255, 0, 0.1);
+      padding: 3px;
+      border-left: 3px solid #ffff00;
+    }
+    .success {
+      color: #00ffff;
+      font-weight: bold;
+    }
+    .error {
+      color: #ff4444;
+      font-weight: bold;
+    }
+    .warning {
+      color: #ffa500;
+      font-weight: bold;
+    }
+    .game-over {
+      color: #ff0000;
+      font-size: 16px;
+      font-weight: bold;
+      text-align: center;
+      background: rgba(255, 0, 0, 0.2);
+      padding: 8px;
+      border: 2px solid #ff0000;
+      border-radius: 8px;
+    }
+    .treasure {
+      color: #ffd700;
+      font-weight: bold;
+      text-shadow: 0 0 5px #ffd700;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    .pulsing {
+      animation: pulse 1s infinite;
+    }
+    /* Responsive adjustments */
+    @media (max-height: 700px) {
+      #game-area {
+        height: 240px;
+      }
+      .header h1 {
+        font-size: 20px;
+      }
+      #status-panel {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 8px;
+        padding: 8px;
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🌀 TIME TRAVEL ADVENTURE 🌀</h1>
+  <p>Collect keys and solve puzzles across time-warped locations!</p>
+</div>
+
+<div id="status-panel">
+  <div class="status-item">
+    <span class="status-label">🕒 Real Time:</span>
+    <span class="status-value" id="real-time"></span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">⏰ Game Time:</span>
+    <span class="status-value" id="game-time"></span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">⏱ Location Timer:</span>
+    <span class="status-value" id="location-timer"></span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">💖 Health:</span>
+    <span class="status-value" id="health"></span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">🗝 Keys:</span>
+    <span class="status-value" id="keys"></span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">📍 Location:</span>
+    <span class="status-value" id="location"></span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">🌀 Time Effect:</span>
+    <span class="status-value time-effect" id="time-effect"></span>
+  </div>
+  <div class="status-item">
+    <span class="status-label">🏆 Score:</span>
+    <span class="status-value" id="score"></span>
+  </div>
+</div>
+
+<div id="game-area">
+  <div id="console"></div>
+  <div id="map-container">
+    <canvas id="map" width="200" height="180"></canvas>
+    <div id="score-board">
+      <h3>🎯 OBJECTIVES</h3>
+      <p>Collect keys from:<br>
+      🔺 Bermuda Triangle<br>
+      🗿 Stonehenge<br>
+      🌲 Crooked Forest</p>
+      <p class="treasure">💰 Need ALL 3 keys for treasure!</p>
+      <p class="warning">⚠ 2 minutes per location!</p>
+    </div>
+  </div>
+</div>
+
+<input id="cmd" placeholder="Enter command (north/south/east/west/collect/answer/help)..." autofocus>
+
+<button id="reset-button" style="margin: 10px; padding: 8px 16px; font-family: 'Courier New'; font-size: 14px; background-color: #ff4444; color: white; border: 2px solid #ff0000; border-radius: 5px; cursor: pointer;">
+  🔄 Reset Game
+</button>
+
+
+<script>
+// ----------- Game Data & Portal Randomization -----------
+const specialLocations = ['Bermuda Triangle', 'Stonehenge', 'Crooked Forest'];
+const directions = ['north', 'south', 'east'];
+
+const locations = {
+  'Central Hub': {
+    description: "A mystical nexus where time flows normally. Portals shimmer in all directions.",
+    welcome: "🌟 Welcome to the Central Hub! Choose your time adventure wisely.",
+    key: null,
+    exits: { }, // Will be randomized
+    timeEffect: 'normal',
+    hasQuestion: false,
+    questionAnswered: true,
+    timeModifier: 0
+  },
+  'Bermuda Triangle': {
+    description: "A mysterious triangular vortex where time accelerates dramatically. Reality bends around you.",
+    welcome: "🔺 Entering Bermuda Triangle! Time is speeding up - move quickly!",
+    key: 'Triangle Key',
+    exits: { }, // Will be set to point back to Central Hub
+    timeEffect: 'accelerated',
+    hasQuestion: true,
+    question: "What phenomenon is the Bermuda Triangle famous for?",
+    answer: "disappearances",
+    questionAnswered: false,
+    timeModifier: 2, // Accelerated (double speed)
+    
+  },
+  'Stonehenge': {
+    description: "Ancient stone circles where time moves sluggishly, as if weighted by millennia.",
+    welcome: "🗿 Welcome to Stonehenge! Time drags heavily here - use it wisely.",
+    key: 'Stone Key',
+    exits: { }, // Will be set to point back to Central Hub
+    timeEffect: 'decelerated', 
+    hasQuestion: true,
+    question: "How many stones form the main circle of Stonehenge?",
+    answer: "30",
+    questionAnswered: false,
+    timeModifier: 0.5 // Slowed (but logic is controlled in updateTimeDisplay)
+  },
+  'Crooked Forest': {
+    description: "A twisted woodland where time flows in reverse, undoing moments as they pass.",
+    welcome: "🌲 Entering Crooked Forest! Time flows backward - reality unravels!",
+    key: 'Forest Key',
+    exits: { }, // Will be set to point back to Central Hub
+    timeEffect: 'reverse',
+    hasQuestion: true,
+    question: "In which country is the famous Crooked Forest located?",
+    answer: "poland",
+    questionAnswered: false,
+    timeModifier: -1 // Reverse (but logic is controlled in updateTimeDisplay)
+  },
+  'Treasure Vault': {
+    description: "The legendary treasure vault, accessible only to those who have mastered time itself!",
+    welcome: "💰 TREASURE VAULT UNLOCKED! Congratulations, Time Master!",
+    key: null,
+    exits: {},
+    timeEffect: 'normal',
+    hasQuestion: false,
+    questionAnswered: true,
+    timeModifier: 0
+  }
+};
+
+// Helper for reverse direction mapping
+function reverseDirection(direction) {
+  switch (direction) {
+    case 'north': return 'south';
+    case 'south': return 'north';
+    case 'east': return 'west';
+    case 'west': return 'east';
+    default: return '';
+  }
+}
+
+// Randomize the portal assignments at game start
+function randomizePortals() {
+  // Shuffle special locations
+  const shuffled = specialLocations
+    .map(value => ({ value, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ value }) => value);
+
+  // Assign directions randomly in Central Hub
+  for (let i = 0; i < directions.length; i++) {
+    // Set hub exit in this direction to a random special location
+    locations['Central Hub'].exits[directions[i]] = shuffled[i];
+    // Ensure the special location exits back to hub
+    locations[shuffled[i]].exits[reverseDirection(directions[i])] = 'Central Hub';
+  }
+  // Treasure vault remains always on 'treasure'
+  locations['Central Hub'].exits['treasure'] = 'Treasure Vault';
+}
+randomizePortals();
+
+let gameState = {
+  health: 100,
+  keys: [],
+  location: 'Central Hub',
+  gameTime: 0, // Game time in seconds
+  locationTimer: 120, // 2 minutes per location
+  timeEffect: 'normal',
+  awaitingAnswer: false,
+  currentQuestion: null,
+  visitedLocations: ['Central Hub'],
+  gameActive: true,
+  score: 0,
+  startTime: Date.now(),
+  lastTickTime: Date.now()
+};
+
+function saveGameState() {
+  localStorage.setItem('timeAdventureState', JSON.stringify(gameState));
+}
+
+
+let gameInterval;
+const LOCATION_TIME_LIMIT = 120; // 2 minutes in seconds
+
+// DOM elements
+const elements = {
+  realTime: document.getElementById('real-time'),
+  gameTime: document.getElementById('game-time'),
+  locationTimer: document.getElementById('location-timer'),
+  console: document.getElementById('console'),
+  cmd: document.getElementById('cmd'),
+  health: document.getElementById('health'),
+  keys: document.getElementById('keys'),
+  location: document.getElementById('location'),
+  timeEffect: document.getElementById('time-effect'),
+  score: document.getElementById('score')
+};
+
+function formatTime(seconds) {
+  const hours = Math.floor(Math.abs(seconds) / 3600);
+  const minutes = Math.floor((Math.abs(seconds) % 3600) / 60);
+  const secs = Math.floor(Math.abs(seconds) % 60);
+  const sign = seconds < 0 ? '-' : '';
+  return `${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+// ----------- Time & Game Logic -----------
+function updateTimeDisplay() {
+  if (!gameState.gameActive) return;
+  const now = Date.now();
+  const deltaTime = (now - gameState.lastTickTime) / 1000;
+  gameState.lastTickTime = now;
+
+  const currentLocation = locations[gameState.location];
+
+  let gameTimeDelta = deltaTime;
+
+  // Check if time effect is still active
+  const effectActive = gameState.timeEffectStart &&
+    (now - gameState.timeEffectStart <= gameState.timeEffectDuration * 1000);
+
+  // Apply time dilation if effect is active
+  if (effectActive && gameState.location !== 'Central Hub' && gameState.location !== 'Treasure Vault') {
+    switch (currentLocation.timeEffect) {
+      case 'reverse':
+        gameTimeDelta = -deltaTime;
+        break;
+      case 'accelerated':
+        gameTimeDelta = deltaTime * (currentLocation.timeModifier || 2);
+        break;
+      case 'decelerated':
+        gameTimeDelta = deltaTime * (currentLocation.timeModifier || 0.5);
+        break;
+      default:
+        gameTimeDelta = deltaTime;
+    }
+  } else {
+    // Reset effect visually after it ends
+    currentLocation.timeEffect = 'normal';
+    gameTimeDelta = deltaTime;
+  }
+
+  gameState.gameTime += gameTimeDelta;
+
+  // Update location timer
+  if (gameState.location !== 'Central Hub' && gameState.location !== 'Treasure Vault') {
+    gameState.locationTimer -= deltaTime;
+  }
+
+  // Update display values (unchanged)
+  elements.realTime.textContent = new Date().toLocaleTimeString();
+  elements.gameTime.textContent = formatTime(gameState.gameTime);
+  const timerDisplay = Math.max(0, gameState.locationTimer);
+  elements.locationTimer.textContent = gameState.location !== 'Central Hub' && gameState.location !== 'Treasure Vault' 
+    ? formatTime(timerDisplay)
+    : '∞';
+
+  // Warning effects (unchanged)
+  if (timerDisplay <= 30 && timerDisplay > 0) {
+    elements.locationTimer.classList.add('pulsing');
+    elements.locationTimer.style.color = timerDisplay <= 10 ? '#ff4444' : '#ffa500';
+  } else {
+    elements.locationTimer.classList.remove('pulsing');
+    elements.locationTimer.style.color = '#ffffff';
+  }
+
+  if (gameState.locationTimer <= 0 && gameState.location !== 'Central Hub' && gameState.location !== 'Treasure Vault') {
+    endGameTimeUp();
+  }
+}
+
+
+function startGameClock() {
+  if (gameInterval) clearInterval(gameInterval);
+  /*gameState.lastTickTime = Date.now();
+  gameInterval = setInterval(updateTimeDisplay, 100); // Update every 100ms for smooth display
+  */gameInterval = setInterval(() => {
+  updateTimeDisplay();
+  saveGameState(); // ← Save every tick
+}, 100);
+
+}
+
+function stopGameClock() {
+  if (gameInterval) {
+    clearInterval(gameInterval);
+    gameInterval = null;
+  }
+}
+
+function updateStatusDisplay() {
+  elements.health.textContent = `${gameState.health}/100`;
+  elements.keys.textContent = gameState.keys.length > 0 ? gameState.keys.join(', ') : 'None';
+  elements.location.textContent = gameState.location;
+  elements.timeEffect.textContent = locations[gameState.location].timeEffect.toUpperCase();
+  elements.score.textContent = gameState.score.toLocaleString();
+  
+  // Color code health
+  if (gameState.health <= 25) {
+    elements.health.style.color = '#ff4444';
+  } else if (gameState.health <= 50) {
+    elements.health.style.color = '#ffa500';
+  } else {
+    elements.health.style.color = '#00ff41';
+  }
+}
+
+function log(message, className = '') {
+  const div = document.createElement('div');
+  if (className) div.className = className;
+  div.textContent = message;
+  elements.console.appendChild(div);
+  elements.console.scrollTop = elements.console.scrollHeight;
+}
+
+function enterLocation() {
+  const currentLocation = locations[gameState.location];
+  
+  // Apply time jump for Bermuda Triangle
+  if (gameState.location === 'Bermuda Triangle' && currentLocation.timeJump) {
+    gameState.gameTime += currentLocation.timeJump;
+    log(`⚡ Time jumps forward by ${currentLocation.timeJump} seconds!`, 'warning');
+  }
+  
+  // Welcome message
+  log(currentLocation.welcome, 'success');
+  log(currentLocation.description);
+  log('');
+  
+  // Reset location timer for special locations
+  if (gameState.location !== 'Central Hub' && gameState.location !== 'Treasure Vault') {
+    gameState.locationTimer = LOCATION_TIME_LIMIT;
+  }
+  
+  // Show available exits
+  const exits = Object.keys(currentLocation.exits);
+  if (exits.length > 0) {
+    log(`🚪 Available directions: ${exits.join(', ')}`);
+    // Show treasure status
+    if (exits.includes('treasure')) {
+      const hasAllKeys = checkTreasureUnlock();
+      if (hasAllKeys) {
+        log('💰 ✨ TREASURE VAULT UNLOCKED! Type "treasure" to enter! ✨', 'treasure');
+      } else {
+        const keysNeeded = 3 - gameState.keys.length;
+        log(`🔐 Treasure Vault: LOCKED (Need ${keysNeeded} more keys)`, 'warning');
+        log(`🗝 Keys needed: ${3 - gameState.keys.length}/3`, 'warning');
+      }
+    }
+  }
+  
+  // Show collectible key
+  if (currentLocation.key && !gameState.keys.includes(currentLocation.key)) {
+    log(`🗝 You see a ${currentLocation.key} glinting nearby! Type 'collect' to take it.`);
+  }
+  
+  // Check for treasure vault unlock
+  if (gameState.location === 'Treasure Vault') {
+    gameState.score += 10000;
+    log('🎉 CONGRATULATIONS! YOU WON! 🎉', 'treasure');
+    log(`🏆 VICTORY! FINAL SCORE: ${gameState.score.toLocaleString()} POINTS!`, 'treasure');
+    log('You have mastered the art of time travel!', 'treasure');
+    log('', 'treasure');
+    stopGameClock();
+    showFinalStatus();
+    return;
+  }
+  
+  // Add to visited locations
+  if (!gameState.visitedLocations.includes(gameState.location)) {
+    gameState.visitedLocations.push(gameState.location);
+  }
+  
+  updateStatusDisplay();
+}
+
+function askQuestion() {
+  const currentLocation = locations[gameState.location];
+  if (currentLocation.hasQuestion && !currentLocation.questionAnswered) {
+    log('🤔 ' + currentLocation.question, 'question');
+    log("💭 Type 'answer <your_response>' to respond.");
+    gameState.awaitingAnswer = true;
+    gameState.currentQuestion = currentLocation.question;
+    return true;
+  }
+  return false;
+}
+
+function checkTreasureUnlock() {
+  const requiredKeys = ['Triangle Key', 'Stone Key', 'Forest Key'];
+  const hasAllKeys = requiredKeys.every(key => gameState.keys.includes(key));
+  return hasAllKeys;
+}
+
+function endGameTimeUp() {
+  gameState.gameActive = false;
+  stopGameClock();
+  log('', 'game-over');
+  log('⏰ TIME\'S UP! ⏰', 'game-over');
+  log(`You ran out of time in ${gameState.location}!`, 'game-over');
+  log(`🏆 FINAL SCORE: ${gameState.score.toLocaleString()} POINTS`, 'game-over');
+  log('', 'game-over');
+  showFinalStatus();
+}
+
+function showFinalStatus() {
+  log('', '');
+  log('════════ GAME OVER ════════', 'success');
+  log(`🏆 FINAL SCORE: ${gameState.score.toLocaleString()} POINTS`, 'treasure');
+  log('', '');
+  log('=== DETAILED STATISTICS ===', 'success');
+  log(`🕒 Total Game Time: ${formatTime(gameState.gameTime)}`);
+  log(`💖 Final Health: ${gameState.health}/100`);
+  log(`🗝 Keys Collected: ${gameState.keys.join(', ') || 'None'} (${gameState.keys.length}/3)`);
+  log(`📍 Locations Visited: ${gameState.visitedLocations.join(', ')}`);
+  
+  const completion = (gameState.keys.length / 3) * 100;
+  log(`📊 Completion Rate: ${completion.toFixed(1)}%`);
+  log('');
+  
+  // Score breakdown
+  log('=== SCORE BREAKDOWN ===', 'success');
+  log(`🗝 Keys Collected: ${gameState.keys.length} × 1,000 = ${(gameState.keys.length * 1000).toLocaleString()} pts`);
+  const questionsAnswered = Object.values(locations).filter(loc => loc.hasQuestion && loc.questionAnswered).length;
+  log(`🤔 Questions Answered: ${questionsAnswered} × 500 = ${(questionsAnswered * 500).toLocaleString()} pts`);
+  if (gameState.location === 'Treasure Vault' || gameState.score >= 10000) {
+    log('💰 Treasure Vault Bonus: 10,000 pts', 'treasure');
+  }
+  log(`🏆 TOTAL SCORE: ${gameState.score.toLocaleString()} POINTS`, 'treasure');
+  log('');
+  
+  // Performance rating
+  if (gameState.score >= 10000) {
+    log('🌟 RANK: MASTER OF TIME! Perfect completion!', 'treasure');
+  } else if (gameState.keys.length === 3) {
+    log('🎖 RANK: TIME COLLECTOR! All keys found!', 'success');
+  } else if (gameState.keys.length >= 2) {
+    log('🥉 RANK: TIME SEEKER! Good progress!', 'success');
+  } else if (gameState.keys.length >= 1) {
+    log('🔰 RANK: TIME NOVICE! Keep exploring!', 'success');
+  } else {
+    log('📚 RANK: TIME STUDENT! Practice makes perfect!', 'warning');
+  }
+  
+  log('', '');
+  log('Thanks for playing Time Travel Adventure!', 'success');
+  log('Refresh the page to play again!', 'success');
+  elements.cmd.disabled = true;
+}
+
+// ----------- Command Handling -----------
+function handleCommand(input) {
+  if (!gameState.gameActive) return;
+  
+  const parts = input.trim().toLowerCase().split(' ');
+  const command = parts[0];
+  const args = parts.slice(1).join(' ');
+  
+  switch (command) {
+    case 'help':
+      log('🎮 COMMANDS:');
+      log('• north/south/east/west - Move between locations');
+      log('• treasure - Go to treasure vault (requires ALL 3 keys!)');
+      log('• collect - Pick up keys');
+      log('• answer <response> - Answer questions');
+      log('• help - Show this help');
+      log('');
+      log('💡 TIP: Collect all 3 keys to unlock the treasure vault!');
+      break;
+    case 'north':
+    case 'south':
+    case 'east':
+    case 'west':
+    case 'treasure':
+      const currentLocation = locations[gameState.location];
+      if (!currentLocation.exits[command]) {
+        log(`❌ You can't go ${command} from here.`, 'error');
+      } else if (command === 'treasure' && !checkTreasureUnlock()) {
+        const keysNeeded = 3 - gameState.keys.length;
+        log(`🔐 The treasure vault is sealed! You need ${keysNeeded} more keys.`, 'error');
+        log(`🗝 Current keys: ${gameState.keys.join(', ') || 'None'} (${gameState.keys.length}/3)`, 'warning');
+        log('💡 Visit Bermuda Triangle, Stonehenge, and Crooked Forest to collect all keys!', 'warning');
+      } else {
+        // Check if player must answer question first
+        if (currentLocation.hasQuestion && !currentLocation.questionAnswered) {
+          if (!askQuestion()) {
+            log('🚫 You must answer the question before leaving!', 'warning');
+            return;
+          }
+          return;
+        }
+        gameState.location = currentLocation.exits[command];
+        log(`🚶 Moving ${command}...`);
+        enterLocation();
+      }
+      break;
+    case 'collect':
+      const location = locations[gameState.location];
+      if (location.key && !gameState.keys.includes(location.key)) {
+        log(`✨ You collected the ${location.key}!`, 'success');
+        gameState.keys.push(location.key);
+        gameState.score += 1000;
+        // Check if all keys are now collected
+        if (checkTreasureUnlock()) {
+          log('🎉 ALL KEYS COLLECTED! 🎉', 'treasure');
+          log('💰 The treasure vault is now accessible from Central Hub!', 'treasure');
+        } else {
+          const remaining = 3 - gameState.keys.length;
+          log(`🗝 ${remaining} more key${remaining > 1 ? 's' : ''} needed for the treasure vault!`, 'success');
+        }
+        updateStatusDisplay();
+      } else {
+        log("❌ There's no key to collect here or you already have it.", 'error');
+      }
+      break;
+    case 'answer':
+      if (!gameState.awaitingAnswer) {
+        log("❌ There's no question to answer right now.", 'error');
+        break;
+      }
+      const currentLoc = locations[gameState.location];
+      if (args.toLowerCase().includes(currentLoc.answer.toLowerCase())) {
+        log('✅ Correct! Well done!', 'success');
+        currentLoc.questionAnswered = true;
+        gameState.awaitingAnswer = false;
+        gameState.currentQuestion = null;
+        gameState.score += 500;
+        updateStatusDisplay();
+      } else {
+        log('❌ Incorrect answer. Try again!', 'error');
+        gameState.health -= 10;
+        log('🤔 ' + currentLoc.question, 'question');
+        updateStatusDisplay();
+      }
+      break;
+
+    default:
+      log(`❓ Unknown command: "${command}". Type 'help' for available commands.`, 'error');
+  }
+}
+
+// ----------- Event Listeners -----------
+elements.cmd.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && gameState.gameActive) {
+    const input = elements.cmd.value.trim();
+    if (input) {
+      log(`> ${input}`);
+      handleCommand(input);
+      elements.cmd.value = '';
+    }
+  }
+});
+
+function loadGameState() {
+  const saved = localStorage.getItem('timeAdventureState');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    Object.assign(gameState, parsed);
+    // Fix any missing properties or functions after loading
+    gameState.startTime = Date.now(); // Reset startTime so it doesn’t drift
+    gameState.lastTickTime = Date.now();
+    gameState.gameActive = true;
+    gameState.awaitingAnswer = false;
+    gameState.currentQuestion = null;
+    log('📂 Game progress loaded from local storage!', 'success');
+  }
+}
+
+// ----------- Game Initialization -----------
+function initGame() {
+  startGameClock();
+  log('🌟 ═══ TIME TRAVEL ADVENTURE ═══ 🌟', 'success');
+  log('🎯 Mission: Collect ALL 3 keys from mystical locations!');
+  log('⚠ Warning: Each location has unique time effects!');
+  log('⏰ You have 2 minutes per location - use time wisely!');
+  log('💎 Solve puzzles to unlock keys and reach the treasure!');
+  log('🔐 The treasure vault requires ALL 3 keys to unlock!');
+  log('');
+  log('Type "help" for commands. Good luck, Time Traveler!');
+  log('');
+  enterLocation();
+}
+
+function resetGame() {
+  localStorage.removeItem('timeAdventureState');
+  location.reload(); // Reloads the page to re-run all init logic
+}
+
+
+loadGameState();  // <-- This goes right before initGame()
+initGame();
+
+document.getElementById('reset-button').addEventListener('click', () => {
+  const confirmReset = confirm("Are you sure you want to reset the game and start over?");
+  if (confirmReset) {
+    resetGame();
+  }
+});
+
+</script>
+
+</body>
+</html>
