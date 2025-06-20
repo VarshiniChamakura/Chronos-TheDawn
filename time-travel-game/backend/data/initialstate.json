@@ -1,0 +1,12 @@
+{
+  "health": 100,
+  "keys": [],
+  "location": "Central Hub",
+  "gameTime": 0,
+  "visitedLocations": ["Central Hub"],
+  "score": 0,
+  "startTime": 0,
+  "timeEffects": {},
+  "answers": {},
+  "timeduration": 10
+}
