@@ -25,8 +25,8 @@ function randomizePortals(locations) {
     .sort((a, b) => a.sort - b.sort)
     .map(({ value }) => value);
 
-  // Randomize time effects for each special location (accelerated, reverse, normal)
-  const timeEffects = ["accelerated", "reverse", "normal"];
+  // Randomize time effects for each special location (accelerated, decelerated, reverse)
+  const timeEffects = ["accelerated", "decelerated", "reverse"];
   const shuffledEffects = timeEffects
     .map((effect) => ({ effect, sort: Math.random() }))
     .sort((a, b) => a.sort - b.sort)
@@ -40,10 +40,10 @@ function randomizePortals(locations) {
     // Set the timeModifier based on the effect
     if (shuffledEffects[i] === "accelerated") {
       locations[shuffled[i]].timeModifier = 1.5;
+    } else if (shuffledEffects[i] === "decelerated") {
+      locations[shuffled[i]].timeModifier = 0.5;
     } else if (shuffledEffects[i] === "reverse") {
       locations[shuffled[i]].timeModifier = -1;
-    } else {
-      locations[shuffled[i]].timeModifier = 1;
     }
   }
   locations["Central Hub"].exits["treasure"] = "Treasure Vault";
@@ -132,19 +132,21 @@ const getInitialGameState = (locations) => {
     if (elapsed > 10) elapsed = 10; // Only allow 10s max
     
     const currentLocation =
-      parsed.location && parsed.location in initialLocations
+      parsed.location && parsed.location in locations
         ? parsed.location
         : "Central Hub";
     
     let gameTimeDelta = elapsed;
     
     if (currentLocation !== "Central Hub" && currentLocation !== "Treasure Vault") {
-      const timeModifier = initialLocations[currentLocation]?.timeModifier || 1;
+      const timeModifier = locations[currentLocation]?.timeModifier || 1;
       gameTimeDelta = elapsed * timeModifier;
       parsed.locationTimer = Math.max(0, parsed.locationTimer - elapsed);
     }
     
     parsed.gameTime += gameTimeDelta;
+    // Add elapsed real time to the constant game time
+    parsed.constantGameTime = (parsed.constantGameTime || 0) + elapsed;
     parsed.lastTickTime = now;
     return parsed;
   }
@@ -154,7 +156,7 @@ const getInitialGameState = (locations) => {
     keys: [],
     location: "Central Hub",
     gameTime: 0,
-    constantGameTime: 0,
+    constantGameTime: 0, // New state for the constant timer
     locationTimer: 120,
     timeEffect: "normal",
     awaitingAnswer: false,
@@ -181,6 +183,7 @@ function Game() {
   const [isTimeUpPopupVisible, setIsTimeUpPopupVisible] = useState(false);
   const [isResetConfirmVisible, setIsResetConfirmVisible] = useState(false);
   const [isWinPopupVisible, setIsWinPopupVisible] = useState(false);
+  const [isLogoutConfirmVisible, setIsLogoutConfirmVisible] = useState(false);
 
   // Console log
   const [logs, setLogs] = useState([]);
@@ -207,39 +210,30 @@ function Game() {
       setGameState((prev) => {
         const now = Date.now();
         let deltaTime = (now - prev.lastTickTime) / 1000;
-        if (deltaTime > 10) deltaTime = 10; // Clamp max time passage to 10s
-
+        if (deltaTime > 10) deltaTime = 10;
         let gameTimeDelta = deltaTime;
         const currentLocation = locations[prev.location];
-
-        // Apply time effects based on location
         if (prev.location !== "Central Hub" && prev.location !== "Treasure Vault") {
           switch (currentLocation.timeEffect) {
             case "accelerated":
-              gameTimeDelta = deltaTime * 1.5; // 3 minutes in 2 minutes = 1.5x
+              gameTimeDelta = deltaTime * 1.5;
               break;
             case "decelerated":
-              // Custom logic: while user is in deceleration mode, the game time should go only 1 minute forward within 2 minutes of location time
-              // So, for every second of location time, only 1/2 second of game time should advance
-              // i.e., gameTimeDelta = (elapsed location time / 2)
-              gameTimeDelta = (deltaTime * 1) / 2;
+              gameTimeDelta = deltaTime * 0.5;
               break;
             case "reverse":
-              gameTimeDelta = deltaTime * -1; // time goes backward
+              gameTimeDelta = deltaTime * -1;
               break;
             default:
               gameTimeDelta = deltaTime;
           }
         }
-
         let newGameTime = prev.gameTime + gameTimeDelta;
         let newLocationTimer = prev.locationTimer;
-        const newConstantGameTime = prev.constantGameTime + deltaTime;
-
+        const newConstantGameTime = (prev.constantGameTime || 0) + deltaTime;
         if (prev.location !== "Central Hub" && prev.location !== "Treasure Vault") {
           newLocationTimer = Math.max(0, prev.locationTimer - deltaTime);
         }
-
         if (
           newLocationTimer <= 0 &&
           prev.location !== "Central Hub" &&
@@ -249,26 +243,28 @@ function Game() {
           endGameTimeUp();
           return { ...prev, gameActive: false, locationTimer: 0, lastTickTime: now };
         }
-
         return {
           ...prev,
           gameTime: newGameTime,
-          locationTimer: newLocationTimer,
           constantGameTime: newConstantGameTime,
-          gameActive: newLocationTimer > 0,
+          locationTimer: newLocationTimer,
           lastTickTime: now,
         };
       });
-    }, 1000);
-
+    }, 100);
     return () => clearInterval(interval);
-  }, [gameState.gameActive, gameState.location, locations]);
+  }, [gameState.gameActive, gameState.location, locations, gameState.lastTickTime]);
 
-  // --------- INITIALIZE GAME -----------
+  // Log helper
+  const log = (msg, className = "") => {
+    setLogs((lgs) => [...lgs, { msg, className }]);
+  };
+
+  // On mount: intro logs
   useEffect(() => {
     setLogs([]);
     log("🌟 ═══════════════════════════════════════════════════════════════════════════════════════════", "success");
-    log("🌟 WELCOME TO CHRONOS: THE DAWN! 🌟", "success");
+    log("�� WELCOME TO CHRONOS: THE DAWN! 🌟", "success");
     log("🌟 ═══════════════════════════════════════════════════════════════════════════════════════════", "success");
     log("");
     log("🎯 YOUR MISSION: Collect all 3 keys from different time-distorted locations!", "treasure");
@@ -276,29 +272,19 @@ function Game() {
     log("");
     log("💡 TIPS:", "success");
     log("• Use \"help\" to see all available commands");
-    log("• Watch your location timer - you have 2 minutes per special location!");
     log("• Answer questions correctly to progress");
     log("• Collect keys to unlock the treasure vault");
     log("");
     log("🚀 Type your first command to begin your adventure!", "success");
     log("");
     enterLocation("Central Hub");
-    if (consoleRef.current) {
-      inputRef.current.focus();
-    }
   }, []);
-
-  // Log helper
-  const log = (msg, className = "") => {
-    setLogs((lgs) => [...lgs, { msg, className }]);
-  };
 
   // Enter location
   function enterLocation(loc = null) {
-    const newLocationName = loc || "Central Hub";
-    const newLocation = locations[newLocationName];
-    log(newLocation.welcome, "success");
-    log(newLocation.description);
+    const currentLoc = locations[loc || gameState.location];
+    log(currentLoc.welcome, "success");
+    log(currentLoc.description);
     log("");
 
     if (loc && loc !== "Central Hub" && loc !== "Treasure Vault") {
@@ -308,7 +294,7 @@ function Game() {
       }));
     }
 
-    const exits = Object.keys(newLocation.exits);
+    const exits = Object.keys(currentLoc.exits);
     if (exits.length > 0) {
       log(`🚪 Available directions: ${exits.join(", ")}`);
       if (exits.includes("treasure")) {
@@ -321,16 +307,13 @@ function Game() {
       }
     }
 
-    if (newLocation.key && !gameState.keys.includes(newLocation.key)) {
-      log(`🗝 You see a ${newLocation.key} glinting nearby! Type 'collect' to take it.`);
+    if (currentLoc.key && !gameState.keys.includes(currentLoc.key)) {
+      log(`🗝 You see a ${currentLoc.key} glinting nearby! Type 'collect' to take it.`);
     }
 
     if (loc === "Treasure Vault" || (!loc && gameState.location === "Treasure Vault")) {
-      setGameState((prev) => ({ ...prev, score: prev.score + 10000 }));
-      log("🎉 CONGRATULATIONS! YOU WON! 🎉", "treasure");
-      log(`🏆 VICTORY! FINAL SCORE: ${(gameState.score + 10000).toLocaleString()} POINTS!`, "treasure");
-      log("You have mastered the art of time travel!", "treasure");
-      showFinalStatus(true, "Congratulations! You've completed your mission.");
+      setGameState((prev) => ({ ...prev, score: prev.score + 10000, gameActive: false }));
+      setIsWinPopupVisible(true);
       return;
     }
 
@@ -346,7 +329,7 @@ function Game() {
     const currentLocation = locations[gameState.location];
     if (currentLocation.hasQuestion && !currentLocation.questionAnswered) {
       log("🤔 " + currentLocation.question, "question");
-      log("💭 Type 'answer <your_response>' to respond.");
+      log("💭 Type '<your_response>' to respond.");
       setGameState((prev) => ({
         ...prev,
         awaitingAnswer: true,
@@ -358,19 +341,20 @@ function Game() {
   }
 
   function checkTreasureUnlock() {
-    if (gameState.keys.length === specialLocations.length) {
-      log("🔑 All keys collected! The Treasure Vault is now accessible via the Central Hub.", "log-system");
-    }
+    const requiredKeys = ["Triangle Key", "Stone Key", "Forest Key"];
+    return requiredKeys.every((key) => gameState.keys.includes(key));
   }
 
   function endGameTimeUp() {
-    log("⏰ TIME'S UP! The temporal connection was lost.", "log-error");
-    showFinalStatus(false, "You ran out of time!");
     setGameState((prev) => ({ ...prev, gameActive: false }));
-    setIsTimeUpPopupVisible(true);
+    showFinalStatus();
+    // Use a timeout to ensure the score renders before the alert appears
+    setTimeout(() => {
+      setIsTimeUpPopupVisible(true);
+    }, 100);
   }
 
-  function showFinalStatus(success, message) {
+  function showFinalStatus() {
     log("════════ GAME OVER ════════", "success");
     log(`🏆 FINAL SCORE: ${gameState.score.toLocaleString()} POINTS`, "treasure");
     log("");
@@ -414,11 +398,6 @@ function Game() {
     log("");
     log("Thanks for playing Chronos: The Dawn!", "success");
     log('Click "Reset Game" to play again!', "success");
-
-    const finalScore = gameState.score + (success ? 500 : 0);
-    log(`Final Score: ${finalScore}`, "log-system");
-    setGameState((prev) => ({ ...prev, gameActive: false, score: finalScore }));
-    if(success) setIsWinPopupVisible(true);
   }
 
   // Handle command input
@@ -431,6 +410,33 @@ function Game() {
     setInput("");
     log(`> ${value}`);
 
+    // If awaiting an answer, treat any input as the answer
+    if (gameState.awaitingAnswer) {
+      const currentLoc = locations[gameState.location];
+      if (value.toLowerCase().includes(currentLoc.answer.toLowerCase())) {
+        log("✅ Correct! Well done!", "success");
+        setLocations((prev) => {
+          const newLocs = deepClone(prev);
+          newLocs[gameState.location].questionAnswered = true;
+          return newLocs;
+        });
+        setGameState((prev) => ({
+          ...prev,
+          awaitingAnswer: false,
+          currentQuestion: null,
+          score: prev.score + 500,
+        }));
+      } else {
+        log("❌ Incorrect answer. Try again!", "error");
+        setGameState((prev) => ({
+          ...prev,
+          health: prev.health - 10,
+        }));
+        log("🤔 " + currentLoc.question, "question");
+      }
+      return;
+    }
+
     const parts = value.toLowerCase().split(" ");
     const command = parts[0];
     const args = parts.slice(1).join(" ");
@@ -441,12 +447,10 @@ function Game() {
         log("• north/south/east/west - Move between locations");
         log("• treasure - Go to treasure vault (requires ALL 3 keys!)");
         log("• collect - Pick up keys");
-        log("• answer <response> - Answer questions");
         log("• help - Show this help");
         log("");
         log("💡 TIP: Collect all 3 keys to unlock the treasure vault!");
         log("");
-        log("⏰ TIME EFFECTS:");
         break;
       case "north":
       case "south":
@@ -508,275 +512,270 @@ function Game() {
         }
         break;
       }
-      case "answer": {
-        if (!gameState.awaitingAnswer) {
-          log("❌ There's no question to answer right now.", "error");
-          break;
-        }
-        const currentLoc = locations[gameState.location];
-        if (args && args.toLowerCase().includes(currentLoc.answer.toLowerCase())) {
-          log("✅ Correct! Well done!", "success");
-          setLocations((prev) => {
-            const newLocs = deepClone(prev);
-            newLocs[gameState.location].questionAnswered = true;
-            return newLocs;
-          });
-          setGameState((prev) => ({
-            ...prev,
-            awaitingAnswer: false,
-            currentQuestion: null,
-            score: prev.score + 500,
-          }));
-        } else {
-          log("❌ Incorrect answer. Try again!", "error");
-          setGameState((prev) => ({
-            ...prev,
-            health: prev.health - 10,
-          }));
-          log("🤔 " + currentLoc.question, "question");
-        }
-        break;
-      }
       default:
-        log("Unknown command. Type 'help' for a list of commands.", "log-error");
+        log(`❓ Unknown command: "${command}". Type 'help' for available commands.`, "error");
     }
-    setInput("");
   }
 
+  // Reset Game
   function resetGame() {
-    // Clear the saved state in localStorage
-    localStorage.removeItem(GAME_STORAGE_KEY);
-
-    // Create a fresh set of randomized locations
-    const newLocs = deepClone(initialLocations);
-    randomizePortals(newLocs);
-    setLocations(newLocs);
-
-    // Get a fresh initial game state
-    const freshGameState = getInitialGameState(newLocs);
-    setGameState(freshGameState);
-
-    // Reset logs and welcome the player
-    setLogs([]);
-    setTimeout(() => {
-      log("🚀 Game has been reset. A new adventure begins!", "log-system");
-      enterLocation(freshGameState.location);
-    }, 100);
-    setIsResetConfirmVisible(false);
     setIsTimeUpPopupVisible(false);
+    setIsResetConfirmVisible(false);
     setIsWinPopupVisible(false);
+    setLocations(() => {
+      const locs = deepClone(initialLocations);
+      randomizePortals(locs);
+      return locs;
+    });
+    setGameState({
+      health: 100,
+      keys: [],
+      location: "Central Hub",
+      gameTime: 0,
+      constantGameTime: 0, // Reset constant timer
+      locationTimer: 120,
+      timeEffect: "normal",
+      awaitingAnswer: false,
+      currentQuestion: null,
+      visitedLocations: ["Central Hub"],
+      gameActive: true,
+      score: 0,
+      lastTickTime: Date.now(),
+    });
+    setLogs([]);
+    setInput("");
+    localStorage.removeItem(GAME_STORAGE_KEY);
+    // Intro logs
+    log("🌟 ═══════════════════════════════════════════════════════════════════════════════════════════", "success");
+    log("�� WELCOME TO CHRONOS: THE DAWN! 🌟", "success");
+    log("🌟 ═══════════════════════════════════════════════════════════════════════════════════════════", "success");
+    log("");
+    log("🎯 YOUR MISSION: Collect all 3 keys from different time-distorted locations!", "treasure");
+    log("⏰ WARNING: Each location has unique time effects that will challenge you!", "warning");
+    log("");
+    log("💡 TIPS:", "success");
+    log("• Use \"help\" to see all available commands");
+    log("• Watch your location timer - you have 2 minutes per special location!");
+    log("• ACCELERATED: Game time moves 1.5x faster (3min in 2min)");
+    log("• DECELERATED: Game time moves 0.5x slower (1min in 2min)");
+    log("• REVERSE: Game time flows backward!");
+    log("• Answer questions correctly to progress");
+    log("• Collect keys to unlock the treasure vault");
+    log("");
+    log("🚀 Type your first command to begin your adventure!", "success");
+    log("");
+    enterLocation("Central Hub");
+    inputRef.current && inputRef.current.focus();
   }
+
+  // Helper to get userId from localStorage (assume it's stored after login)
+  const userId = localStorage.getItem('userId');
+  const username = localStorage.getItem('username');
+
+  // Save game result to backend
+  async function saveGameResult(won) {
+    if (!userId) return;
+    try {
+      await fetch(`http://localhost:5000/api/auth/stats/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gameTime: gameState.gameTime,
+          constantGameTime: gameState.constantGameTime,
+          won
+        })
+      });
+    } catch (e) {
+      // Ignore errors for now
+    }
+  }
+
+  // When win popup is shown, save win
+  useEffect(() => {
+    if (isWinPopupVisible) saveGameResult(true);
+  }, [isWinPopupVisible]);
+  // When time up popup is shown, save loss
+  useEffect(() => {
+    if (isTimeUpPopupVisible) saveGameResult(false);
+  }, [isTimeUpPopupVisible]);
 
   function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    localStorage.removeItem(GAME_STORAGE_KEY);
-    navigate("/");
+    setIsLogoutConfirmVisible(true);
+  }
+  function confirmLogout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    localStorage.removeItem('userId');
+    navigate('/login');
+  }
+  function cancelLogout() {
+    setIsLogoutConfirmVisible(false);
   }
 
+  // Status display colors
   function healthColor() {
-    if (gameState.health > 70) return "#39ff14"; // Green
-    if (gameState.health > 30) return "#ffcc00"; // Yellow
-    return "#ff4444"; // Red
+    if (gameState.health <= 25) return "#ff4444";
+    if (gameState.health <= 50) return "#ffa500";
+    return "#00ff41";
   }
 
-  // --- STYLES ---
-  const styles = {
-    gameContainer: {
-      background: "linear-gradient(to bottom, #101632 80%, #142355 100%)",
-      color: "#f3f3f3",
-      fontFamily: "'Share Tech Mono', 'Fira Mono', 'Consolas', 'Monaco', monospace",
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      padding: "20px",
-    },
-    header: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '20px',
-    },
-    logoutButton: {
-      background: "transparent",
-      border: "1px solid #ff6600",
-      borderRadius: "6px",
-      padding: "8px 16px",
-      color: "#ff6600",
-      fontSize: "0.9rem",
-      fontFamily: "inherit",
-      cursor: "pointer",
-      outline: "none",
-      transition: "all 0.3s",
-    },
-    mainContent: {
-      display: "flex",
-      flex: 1,
-      gap: "20px",
-    },
-    leftPanel: {
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
-    },
-    rightPanel: {
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
-    },
-    title: {
-      fontSize: "2rem",
-      margin: 0,
-    },
-  };
-
+  // UI
   return (
-    <div style={styles.gameContainer}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Chronos: The Dawn</h1>
-        <button style={styles.logoutButton} onClick={logout}>Logout</button>
-      </div>
-      <div style={styles.mainContent}>
-        {/* Left side: Console and input */}
-        <div style={styles.leftPanel}>
-          <div id="console" ref={consoleRef}>
-            {logs.map(({ msg, className }, idx) => (
-              <div key={idx} className={className}>
-                {msg}
-              </div>
-            ))}
+    <div>
+      {isWinPopupVisible && (
+        <div className="popup-overlay">
+          <div className="popup-content win-popup">
+            <h1 className="green-text">🎉 CONGRATULATIONS!</h1>
+            <p>You have mastered the Chronos: The Dawn!</p>
+            <div className="win-popup-stats">
+              <p><strong>🏆 Final Score:</strong> {gameState.score.toLocaleString()}</p>
+              <p><strong>⏰ Game Time:</strong> {formatTime(gameState.gameTime)}</p>
+              <p><strong>🕒 Constant Game Time:</strong> {formatTime(gameState.constantGameTime)}</p>
+            </div>
+            <button className="play-again-green" onClick={resetGame}>🔄 Play Again</button>
           </div>
-          <form className="input-area-wrap" onSubmit={handleCommand}>
-            <input
-              id="cmd"
-              placeholder="Enter command (north/south/east/west/collect/answer/help)..."
-              autoFocus
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={!gameState.gameActive}
-              ref={inputRef}
-            />
-            <div style={{ marginTop: 10, textAlign: "left" }}>
-              <button id="reset-button" type="button" onClick={resetGame}>
-                🔄 Reset Game
+        </div>
+      )}
+      {isTimeUpPopupVisible && (
+        <div className="popup-overlay">
+          <div className="popup-content game-over-popup">
+            <h1>⏰ TIME'S UP! ⏰</h1>
+            <p>You ran out of time in {gameState.location}!</p>
+            <p>Final Score: {gameState.score.toLocaleString()}</p>
+            <button className="play-again-green" onClick={resetGame}>🔄 Play Again</button>
+          </div>
+        </div>
+      )}
+
+      {isResetConfirmVisible && (
+        <div className="popup-overlay">
+          <div className="popup-content reset-confirm-popup">
+            <h2>🔄 Reset Game?</h2>
+            <p>Are you sure you want to start over? All progress will be lost.</p>
+            <div className="popup-buttons">
+              <button onClick={resetGame} className="popup-button-yes">
+                Yes, Reset
+              </button>
+              <button onClick={() => setIsResetConfirmVisible(false)} className="popup-button-no">
+                No, Cancel
               </button>
             </div>
-          </form>
+          </div>
         </div>
-        {/* Right side: Map and information */}
-        <div style={styles.rightPanel}>
-          <div id="map-container">
-            <div id="score-board">
-              <h3>🎯 OBJECTIVES</h3>
-              <p>
-                Collect keys from:<br />
-                🔺 Bermuda Triangle<br />
-                🗿 Stonehenge<br />
-                🌲 Crooked Forest
-              </p>
-              <p className="treasure">💰 Need ALL 3 keys for treasure!</p>
-              <p className="warning">⚠ 2 minutes per location!</p>
-              <br />
-              <h4>⏰ TIME EFFECTS:</h4>
-              <p className="warning">🚀 ACCELERATED: 3min→2min</p>
-              <p className="success">🐌 DECELERATED: 1min→2min</p>
-              <p className="error">🔄 REVERSE: Time backward!</p>
+      )}
+
+      {isLogoutConfirmVisible && (
+        <div className="popup-overlay">
+          <div className="popup-content logout-confirm-popup">
+            <h1 className="red-text">Logout?</h1>
+            <p>Are you sure you really want to logout of the game?</p>
+            <div className="popup-buttons">
+              <button className="popup-button-yellow" onClick={cancelLogout}>No, Cancel</button>
+              <button className="popup-button-red" onClick={confirmLogout}>Yes, Logout</button>
             </div>
           </div>
-          <div id="status-panel">
-            <div className="status-item">
-              <span className="status-label">🕒 Real Time:</span>
-              <span className="status-value">{new Date().toLocaleTimeString()}</span>
+        </div>
+      )}
+
+      <div className="header">
+        <h1>🌀 CHRONOS: THE DAWN 🌀</h1>
+        {username && <div className="welcome-user">Welcome, <b>{username}</b></div>}
+        <p>Collect keys and solve puzzles across time-warped locations!</p>
+        <button onClick={logout} className="logout-button right-red">🚪 Logout</button>
+      </div>
+      <div id="status-panel">
+        <div className="status-item">
+          <span className="status-label">🕒 Constant Game Time:</span>
+          <span className="status-value">{formatTime(gameState.constantGameTime)}</span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">⏰ Game Time:</span>
+          <span className="status-value">{formatTime(gameState.gameTime)}</span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">⏱ Location Timer:</span>
+          <span
+            className={`status-value${gameState.locationTimer <= 30 && gameState.locationTimer > 0 ? " pulsing" : ""}`}
+            style={{
+              color:
+                gameState.locationTimer <= 10
+                  ? "#ff4444"
+                  : gameState.locationTimer <= 30
+                  ? "#ffa500"
+                  : "#fff",
+            }}
+          >
+            {gameState.location !== "Central Hub" && gameState.location !== "Treasure Vault"
+              ? formatTime(Math.max(0, gameState.locationTimer))
+              : "∞"}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">💖 Health:</span>
+          <span className="status-value" style={{ color: healthColor() }}>
+            {gameState.health}/100
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">🗝 Keys:</span>
+          <span className="status-value">
+            {gameState.keys.length > 0 ? gameState.keys.join(", ") : "None"}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">📍 Location:</span>
+          <span className="status-value">{gameState.location}</span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">🌀 Time Effect:</span>
+          <span className="status-value time-effect">
+            {locations[gameState.location]?.timeEffect?.toUpperCase() || "NORMAL"}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">🏆 Score:</span>
+          <span className="status-value">{gameState.score.toLocaleString()}</span>
+        </div>
+      </div>
+      <div id="game-area">
+        <div id="console" ref={consoleRef}>
+          {logs.map(({ msg, className }, idx) => (
+            <div key={idx} className={className}>
+              {msg}
             </div>
-            <div className="status-item">
-              <span className="status-label">⏰ Game Time:</span>
-              <span className="status-value">{formatTime(gameState.gameTime)}</span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">⏱ Location Timer:</span>
-              <span
-                className={`status-value${gameState.locationTimer <= 30 && gameState.locationTimer > 0 ? " pulsing" : ""}`}
-                style={{
-                  color:
-                    gameState.locationTimer <= 10
-                      ? "#ff4444"
-                      : gameState.locationTimer <= 30
-                      ? "#ffa500"
-                      : "#fff",
-                }}
-              >
-                {gameState.location !== "Central Hub" && gameState.location !== "Treasure Vault"
-                  ? formatTime(Math.max(0, gameState.locationTimer))
-                  : "∞"}
-              </span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">💖 Health:</span>
-              <span className="status-value" style={{ color: healthColor() }}>
-                {gameState.health}/100
-              </span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">🗝 Keys:</span>
-              <span className="status-value">
-                {gameState.keys.length > 0 ? gameState.keys.join(", ") : "None"}
-              </span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">📍 Location:</span>
-              <span className="status-value">{gameState.location}</span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">🌀 Time Effect:</span>
-              <span className="status-value time-effect">
-                {locations[gameState.location]?.timeEffect?.toUpperCase() || "NORMAL"}
-              </span>
-            </div>
-            <div className="status-item">
-              <span className="status-label">🏆 Score:</span>
-              <span className="status-value">{gameState.score.toLocaleString()}</span>
-            </div>
+          ))}
+        </div>
+        <div id="map-container">
+          <div id="score-board">
+            <h3>🎯 OBJECTIVES</h3>
+            <p>
+              Collect keys from:<br />
+              🔺 Bermuda Triangle<br />
+              🗿 Stonehenge<br />
+              🌲 Crooked Forest
+            </p>
+            <p className="treasure">💰 Need ALL 3 keys for treasure!</p>
+            <p className="warning">⚠ 2 minutes per location!</p>
+            <br />
           </div>
         </div>
       </div>
-
-      {/* Pop-up for time up */}
-      {isTimeUpPopupVisible && (
-        <div className="popup-container">
-          <div className="popup-content">
-            <h2>Time's Up!</h2>
-            <p>You've run out of time in this location. The temporal connection is lost.</p>
-            <p>Final Score: {gameState.score}</p>
-            <button onClick={resetGame}>Play Again</button>
-          </div>
+      <form className="input-area-wrap" onSubmit={handleCommand}>
+        <input
+          id="cmd"
+          placeholder="Enter command (north/south/east/west/collect/answer/help)..."
+          autoFocus
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={!gameState.gameActive}
+          ref={inputRef}
+        />
+        <div style={{ marginTop: 10, textAlign: "left" }}>
+          <button id="reset-button" type="button" onClick={() => setIsResetConfirmVisible(true)}>
+            🔄 Reset Game
+          </button>
         </div>
-      )}
-
-      {/* Pop-up for winning */}
-      {isWinPopupVisible && (
-        <div className="popup-container">
-          <div className="popup-content treasure-popup">
-            <h2>Congratulations!</h2>
-            <p>You have mastered time and collected all the keys!</p>
-            <p>Final Score: {gameState.score}</p>
-            <button onClick={resetGame}>Play Again</button>
-          </div>
-        </div>
-      )}
-
-      {/* Pop-up for reset confirmation */}
-      {isResetConfirmVisible && (
-        <div className="popup-container">
-          <div className="popup-content">
-            <h2>Reset Game?</h2>
-            <p>Are you sure you want to reset all progress?</p>
-            <div className="popup-buttons">
-              <button onClick={resetGame}>Yes, Reset</button>
-              <button onClick={() => setIsResetConfirmVisible(false)}>No, Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
+      </form>
     </div>
   );
 }
