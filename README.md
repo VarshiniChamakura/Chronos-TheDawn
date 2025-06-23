@@ -1,1 +1,1 @@
-# Chronos - The Dawn
+# Chronos: The Dawn
