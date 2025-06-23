@@ -1,4 +1,4 @@
-# 🌟 Chronos Terminal - Time Travel Adventure Game
+# 🌟 Chronos: The Dawn - Time Travel Adventure Game
 
 A multi-page React application featuring a text-based time travel adventure game with user authentication.
 
